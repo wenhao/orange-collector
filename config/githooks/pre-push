@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+command="./gradlew build"
+
+${command}
+
+if ! [ $? -eq 0 ]; then
+    printf "Make sure successfully execute command: $command."
+    exit 1
+fi

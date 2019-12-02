@@ -1,0 +1,242 @@
+plugins {
+    id 'java-library'
+    id "com.jfrog.bintray" version "1.8.4"
+    id 'idea'
+    id 'net.ltgt.apt' version '0.21'
+    id 'maven'
+    id 'maven-publish'
+    id 'signing'
+    id 'jacoco'
+    id 'checkstyle'
+    id "com.github.hierynomus.license" version "0.15.0"
+    id "org.sonarqube" version "2.7.1"
+    id 'org.springframework.boot' version '2.1.7.RELEASE'
+    id 'io.spring.dependency-management' version '1.0.8.RELEASE'
+//    id "org.flywaydb.flyway" version "6.1.0"
+    id "com.gorylenko.gradle-git-properties" version "2.2.0"
+    id 'java'
+}
+
+group = 'com.github.wenhao'
+version = '1.0.0-SNAPSHOT'
+sourceCompatibility = '1.8'
+
+idea {
+    project {
+        vcs = 'Git'
+    }
+    module {
+        jdkName = '1.8'
+        downloadJavadoc = true
+        downloadSources = true
+    }
+}
+
+repositories {
+    maven {
+        url 'https://maven.aliyun.com/repository/central'
+    }
+    jcenter()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+//    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+//    implementation "org.flywaydb:flyway-core:6.1.0"
+
+//    runtimeOnly 'mysql:mysql-connector-java:8.0.18'
+
+    testImplementation 'junit:junit:4.12'
+    testImplementation 'org.mockito:mockito-core:3.1.0'
+    testImplementation 'org.assertj:assertj-core:3.14.0'
+}
+
+springBoot {
+    buildInfo()
+}
+
+bootJar {
+    manifest {
+        attributes('Implementation-Title': project.name,
+                'Implementation-Version': project.version)
+    }
+}
+
+checkstyle {
+    ignoreFailures = false
+    configFile file("$project.rootDir/config/checkstyle/checkstyle.xml")
+    sourceSets = [sourceSets.main]
+
+    checkstyleMain {
+        source = 'src/main/java'
+    }
+}
+
+jacocoTestReport {
+    reports {
+        xml.enabled true
+        html.enabled true
+        csv.enabled false
+    }
+}
+
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            enabled = true
+            element = 'CLASS'
+            excludes = ['**.domain.*', '**.service.*', '**.Application', '**.controller.*', '**.request.*']
+
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.8
+            }
+            limit {
+                counter = 'BRANCH'
+                value = 'COVEREDRATIO'
+                minimum = 0.8
+            }
+            limit {
+                counter = 'METHOD'
+                value = 'COVEREDRATIO'
+                minimum = 0.8
+            }
+            limit {
+                counter = 'CLASS'
+                value = 'COVEREDRATIO'
+                minimum = 0.8
+            }
+        }
+    }
+    dependsOn(jacocoTestReport)
+}
+
+license {
+    header rootProject.file('config/copyright/copyright.header')
+    excludes(["**/*.properties", "**/*.yml"])
+    strictCheck true
+}
+
+check.dependsOn jacocoTestCoverageVerification
+check.dependsOn licenseFormat
+
+sonarqube {
+    properties {
+        property "sonar.projectName", "Orange Collector."
+        property "sonar.projectKey", "wenhao_orange-collector"
+    }
+}
+
+def pomConfig = {
+    licenses {
+        license {
+            name 'MIT License'
+            url 'http://www.opensource.org/licenses/mit-license.php'
+            distribution 'repo'
+        }
+    }
+
+    scm {
+        url 'https://github.com/wenhao/orange-collector'
+        connection 'https://github.com/wenhao/orange-collector.git'
+        developerConnection 'git@github.com:wenhao/orange-collector.git'
+    }
+
+    developers {
+        developer {
+            id 'wenhao'
+            name 'Hao Wen'
+            email 'wenhao@126.com'
+            organization 'Hao Wen'
+            roles {
+                role 'Developer'
+            }
+        }
+    }
+
+}
+
+task sourcesJar(type: Jar) {
+    from sourceSets.main.allJava
+    archiveClassifier = 'sources'
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    archiveClassifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
+signing {
+    required { isReleaseVersion && gradle.taskGraph.hasTask("uploadArchives") }
+    sign configurations.archives
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+            artifact sourcesJar
+            artifact javadocJar
+            groupId 'com.github.wenhao'
+            artifactId 'orange-collector'
+            version '1.0.0-SNAPSHOT'
+            pom.withXml {
+                def root = asNode()
+                root.appendNode('description', 'Orange Collector.')
+                root.appendNode('name', 'orange-collector')
+                root.appendNode('url', 'https://github.com/wenhao/orange-collector')
+                root.appendNode('inceptionYear', '2019')
+                root.children().last() + pomConfig
+            }
+        }
+    }
+}
+
+// publish to jcenter
+bintray {
+    user = project.hasProperty('bintrayUser') ? project.property('bintrayUser') : System.getenv('BINTRAY_USER')
+    key = project.hasProperty('bintrayApiKey') ? project.property('bintrayApiKey') : System.getenv('BINTRAY_API_KEY')
+    configurations = ['archives']
+    publications = ['maven']
+    dryRun = false
+    publish = true
+    override = false
+    pkg {
+        repo = 'maven'
+        name = 'orange-collector'
+        desc = 'Orange Collector'
+        licenses = ['MIT']
+        websiteUrl = 'https://github.com/wenhao/orange-collector'
+        issueTrackerUrl = 'https://github.com/wenhao/orange-collector/issues'
+        vcsUrl = 'https://github.com/wenhao/orange-collector'
+        labels = ['coverage', 'test coverage']
+        publicDownloadNumbers = true
+        githubRepo = 'wenhao/orange-collector'
+        githubReleaseNotesFile = 'README.md'
+        version {
+            name = '1.0.0-SNAPSHOT'
+            desc = 'Orange Collector 1.0.0-SNAPSHOT'
+            released = new Date()
+            vcsTag = '1.0.0-SNAPSHOT'
+            gpg {
+                sign = true
+                passphrase = 'passphrase'
+            }
+            mavenCentralSync {
+                sync = true
+                user = project.hasProperty('sonatypeUsername')
+                password = project.hasProperty('sonatypePassword')
+                close = '1'
+            }
+        }
+    }
+}
+
+copy {
+    from "./config/githooks/"
+    into "./.git/hooks/"
+    fileMode 0755
+}
